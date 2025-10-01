@@ -15,8 +15,11 @@ import dev.chungjungsoo.gptmobile.util.handleStates
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -31,87 +34,66 @@ class ChatViewModel @Inject constructor(
         data object Loading : LoadingState()
     }
 
+    data class ChatUiState(
+        val chatRoom: ChatRoom = ChatRoom(id = -1, title = "", enabledPlatform = emptyList()),
+        val messages: List<Message> = emptyList(),
+        val currentQuestion: String = "",
+        val isIdle: Boolean = true,
+        val isLoaded: Boolean = false,
+        val isChatTitleDialogOpen: Boolean = false,
+        val isEditQuestionDialogOpen: Boolean = false,
+        val editedQuestion: Message? = null,
+        val enabledPlatformsInApp: List<ApiType> = emptyList(),
+        val platformLoadingStates: Map<ApiType, LoadingState> = emptyMap(),
+        val activeUserMessage: Message? = null,
+        val activePlatformMessages: Map<ApiType, Message> = emptyMap(),
+        val geminiNanoMessage: Message? = null,
+        val geminiNanoLoadingState: LoadingState = LoadingState.Idle
+    )
+
     private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
     private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
     val enabledPlatformsInChat = enabledPlatformString.split(',').map { s -> ApiType.valueOf(s) }
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
 
-    private val _chatRoom = MutableStateFlow<ChatRoom>(ChatRoom(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
-    val chatRoom = _chatRoom.asStateFlow()
+    private val _uiState = MutableStateFlow(
+        ChatUiState(
+            chatRoom = ChatRoom(id = -1, title = "", enabledPlatform = enabledPlatformsInChat),
+            platformLoadingStates = ApiType.entries.associateWith { LoadingState.Idle },
+            activePlatformMessages = ApiType.entries.associateWith { 
+                Message(chatId = chatRoomId, content = "", platformType = it) 
+            },
+            activeUserMessage = Message(chatId = chatRoomId, content = "", platformType = null),
+            editedQuestion = Message(chatId = chatRoomId, content = "", platformType = null),
+            geminiNanoMessage = Message(chatId = chatRoomId, content = "", platformType = null)
+        )
+    )
+    val uiState: StateFlow<ChatUiState> = _uiState.asStateFlow()
 
-    private val _isChatTitleDialogOpen = MutableStateFlow(false)
-    val isChatTitleDialogOpen = _isChatTitleDialogOpen.asStateFlow()
-
-    private val _isEditQuestionDialogOpen = MutableStateFlow(false)
-    val isEditQuestionDialogOpen = _isEditQuestionDialogOpen.asStateFlow()
-
-    // Enabled platforms list
-    private val _enabledPlatformsInApp = MutableStateFlow(listOf<ApiType>())
-    val enabledPlatformsInApp = _enabledPlatformsInApp.asStateFlow()
-
-    // List of question & answers (User, Assistant)
-    private val _messages = MutableStateFlow(listOf<Message>())
-    val messages: StateFlow<List<Message>> = _messages.asStateFlow()
-
-    // User input used for TextField
-    private val _question = MutableStateFlow("")
-    val question: StateFlow<String> = _question.asStateFlow()
-
-    // Used for passing user question to Edit User Message Dialog
-    private val _editedQuestion = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
-    val editedQuestion = _editedQuestion.asStateFlow()
-
-    // Loading state for each platforms
-    private val _openaiLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val openaiLoadingState = _openaiLoadingState.asStateFlow()
-
-    private val _anthropicLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val anthropicLoadingState = _anthropicLoadingState.asStateFlow()
-
-    private val _googleLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val googleLoadingState = _googleLoadingState.asStateFlow()
-
-    private val _groqLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val groqLoadingState = _groqLoadingState.asStateFlow()
-
-    private val _ollamaLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val ollamaLoadingState = _ollamaLoadingState.asStateFlow()
-
-    private val _geminiNanoLoadingState = MutableStateFlow<LoadingState>(LoadingState.Idle)
-    val geminiNanoLoadingState = _geminiNanoLoadingState.asStateFlow()
-
-    // Total loading state. It should be updated if one of the loading state has changed.
-    // If all loading states are idle, this value should have `true`.
-    private val _isIdle = MutableStateFlow(true)
-    val isIdle = _isIdle.asStateFlow()
-
-    // State for the message loading state (From the database)
-    private val _isLoaded = MutableStateFlow(false)
-    val isLoaded = _isLoaded.asStateFlow()
-
-    // Currently active(chat completion) user input. This is used when user input is sent.
-    private val _userMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
-    val userMessage = _userMessage.asStateFlow()
-
-    // Currently active(chat completion) assistant output. This is used when data is received from the API.
-    private val _openAIMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI))
-    val openAIMessage = _openAIMessage.asStateFlow()
-
-    private val _anthropicMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.ANTHROPIC))
-    val anthropicMessage = _anthropicMessage.asStateFlow()
-
-    private val _googleMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
-    val googleMessage = _googleMessage.asStateFlow()
-
-    private val _groqMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GROQ))
-    val groqMessage = _groqMessage.asStateFlow()
-
-    private val _ollamaMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
-    val ollamaMessage = _ollamaMessage.asStateFlow()
-
-    private val _geminiNanoMessage = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
-    val geminiNanoMessage = _geminiNanoMessage.asStateFlow()
+    // Backward compatibility properties - delegate to uiState
+    val chatRoom: StateFlow<ChatRoom> = uiState.map { it.chatRoom }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), ChatRoom(id = -1, title = "", enabledPlatform = enabledPlatformsInChat))
+    val isChatTitleDialogOpen: StateFlow<Boolean> = uiState.map { it.isChatTitleDialogOpen }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), false)
+    val isEditQuestionDialogOpen: StateFlow<Boolean> = uiState.map { it.isEditQuestionDialogOpen }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), false)
+    val enabledPlatformsInApp: StateFlow<List<ApiType>> = uiState.map { it.enabledPlatformsInApp }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), emptyList())
+    val messages: StateFlow<List<Message>> = uiState.map { it.messages }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), emptyList())
+    val question: StateFlow<String> = uiState.map { it.currentQuestion }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), "")
+    val editedQuestion: StateFlow<Message> = uiState.map { it.editedQuestion ?: Message(chatId = chatRoomId, content = "", platformType = null) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = null))
+    val openaiLoadingState: StateFlow<LoadingState> = uiState.map { it.platformLoadingStates[ApiType.OPENAI] ?: LoadingState.Idle }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), LoadingState.Idle)
+    val anthropicLoadingState: StateFlow<LoadingState> = uiState.map { it.platformLoadingStates[ApiType.ANTHROPIC] ?: LoadingState.Idle }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), LoadingState.Idle)
+    val googleLoadingState: StateFlow<LoadingState> = uiState.map { it.platformLoadingStates[ApiType.GOOGLE] ?: LoadingState.Idle }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), LoadingState.Idle)
+    val groqLoadingState: StateFlow<LoadingState> = uiState.map { it.platformLoadingStates[ApiType.GROQ] ?: LoadingState.Idle }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), LoadingState.Idle)
+    val ollamaLoadingState: StateFlow<LoadingState> = uiState.map { it.platformLoadingStates[ApiType.OLLAMA] ?: LoadingState.Idle }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), LoadingState.Idle)
+    val geminiNanoLoadingState: StateFlow<LoadingState> = uiState.map { it.geminiNanoLoadingState }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), LoadingState.Idle)
+    val isIdle: StateFlow<Boolean> = uiState.map { it.isIdle }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), true)
+    val isLoaded: StateFlow<Boolean> = uiState.map { it.isLoaded }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), false)
+    val userMessage: StateFlow<Message> = uiState.map { it.activeUserMessage ?: Message(chatId = chatRoomId, content = "", platformType = null) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = null))
+    val openAIMessage: StateFlow<Message> = uiState.map { it.activePlatformMessages[ApiType.OPENAI] ?: Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI))
+    val anthropicMessage: StateFlow<Message> = uiState.map { it.activePlatformMessages[ApiType.ANTHROPIC] ?: Message(chatId = chatRoomId, content = "", platformType = ApiType.ANTHROPIC) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = ApiType.ANTHROPIC))
+    val googleMessage: StateFlow<Message> = uiState.map { it.activePlatformMessages[ApiType.GOOGLE] ?: Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE))
+    val groqMessage: StateFlow<Message> = uiState.map { it.activePlatformMessages[ApiType.GROQ] ?: Message(chatId = chatRoomId, content = "", platformType = ApiType.GROQ) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = ApiType.GROQ))
+    val ollamaMessage: StateFlow<Message> = uiState.map { it.activePlatformMessages[ApiType.OLLAMA] ?: Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
+    val geminiNanoMessage: StateFlow<Message> = uiState.map { it.geminiNanoMessage ?: Message(chatId = chatRoomId, content = "", platformType = null) }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(), Message(chatId = chatRoomId, content = "", platformType = null))
 
     // Flows for assistant message streams
     private val openAIFlow = MutableSharedFlow<ApiState>()
@@ -131,100 +113,126 @@ class ChatViewModel @Inject constructor(
     }
 
     fun askQuestion() {
-        Log.d("Question: ", _question.value)
-        _userMessage.update { it.copy(content = _question.value, createdAt = currentTimeStamp) }
-        _question.update { "" }
+        Log.d("Question: ", _uiState.value.currentQuestion)
+        _uiState.update { 
+            it.copy(
+                activeUserMessage = it.activeUserMessage?.copy(
+                    content = it.currentQuestion, 
+                    createdAt = currentTimeStamp
+                ),
+                currentQuestion = ""
+            )
+        }
         completeChat()
     }
 
-    fun closeChatTitleDialog() = _isChatTitleDialogOpen.update { false }
+    fun closeChatTitleDialog() {
+        _uiState.update { it.copy(isChatTitleDialogOpen = false) }
+    }
 
     fun closeEditQuestionDialog() {
-        _editedQuestion.update { Message(chatId = chatRoomId, content = "", platformType = null) }
-        _isEditQuestionDialogOpen.update { false }
+        _uiState.update { 
+            it.copy(
+                editedQuestion = Message(chatId = chatRoomId, content = "", platformType = null),
+                isEditQuestionDialogOpen = false
+            )
+        }
     }
 
     fun editQuestion(q: Message) {
-        _messages.update { it.filter { message -> message.id < q.id && message.createdAt < q.createdAt } }
-        _userMessage.update { it.copy(content = q.content, createdAt = currentTimeStamp) }
+        _uiState.update { state ->
+            state.copy(
+                messages = state.messages.filter { message -> message.id < q.id && message.createdAt < q.createdAt },
+                activeUserMessage = state.activeUserMessage?.copy(content = q.content, createdAt = currentTimeStamp)
+            )
+        }
         completeChat()
     }
 
-    fun openChatTitleDialog() = _isChatTitleDialogOpen.update { true }
-
-    fun openEditQuestionDialog(question: Message) {
-        _editedQuestion.update { question }
-        _isEditQuestionDialogOpen.update { true }
+    fun openChatTitleDialog() {
+        _uiState.update { it.copy(isChatTitleDialogOpen = true) }
     }
 
-    fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_messages.value)
+    fun openEditQuestionDialog(question: Message) {
+        _uiState.update { 
+            it.copy(
+                editedQuestion = question,
+                isEditQuestionDialogOpen = true
+            )
+        }
+    }
+
+    fun generateDefaultChatTitle(): String? = chatRepository.generateDefaultChatTitle(_uiState.value.messages)
 
     fun generateAIChatTitle() {
         viewModelScope.launch {
-            _geminiNanoLoadingState.update { LoadingState.Loading }
-            _geminiNanoMessage.update { it.copy(content = "") }
+            _uiState.update { state ->
+                state.copy(
+                    geminiNanoLoadingState = LoadingState.Loading,
+                    geminiNanoMessage = state.geminiNanoMessage?.copy(content = "")
+                )
+            }
         }
     }
 
     fun retryQuestion(message: Message) {
-        val latestQuestionIndex = _messages.value.indexOfLast { it.platformType == null }
+        val state = _uiState.value
+        val latestQuestionIndex = state.messages.indexOfLast { it.platformType == null }
 
-        if (latestQuestionIndex != -1 && _isIdle.value) {
-            // Update user input to latest question
-            _userMessage.update { _messages.value[latestQuestionIndex] }
+        if (latestQuestionIndex != -1 && state.isIdle) {
+            val previousAnswers = enabledPlatformsInChat.mapNotNull { apiType -> 
+                state.messages.lastOrNull { it.platformType == apiType } 
+            }
 
-            // Get previous answers from the assistant
-            val previousAnswers = enabledPlatformsInChat.mapNotNull { apiType -> _messages.value.lastOrNull { it.platformType == apiType } }
-
-            // Remove latest question & answers
-            _messages.update { it - setOf(_messages.value[latestQuestionIndex]) - previousAnswers.toSet() }
-
-            // Restore messages that are not retrying
-            enabledPlatformsInChat.forEach { apiType ->
-                when (apiType) {
-                    message.platformType -> {}
-                    else -> restoreMessageState(apiType, previousAnswers)
+            _uiState.update { currentState ->
+                val newMessages = currentState.messages - setOf(currentState.messages[latestQuestionIndex]) - previousAnswers.toSet()
+                val updatedPlatformMessages = currentState.activePlatformMessages.toMutableMap()
+                
+                // Restore messages that are not retrying
+                enabledPlatformsInChat.forEach { apiType ->
+                    if (apiType != message.platformType) {
+                        previousAnswers.firstOrNull { it.platformType == apiType }?.let { msg ->
+                            updatedPlatformMessages[apiType] = msg
+                        }
+                    }
                 }
+
+                currentState.copy(
+                    activeUserMessage = currentState.messages[latestQuestionIndex],
+                    messages = newMessages,
+                    activePlatformMessages = updatedPlatformMessages
+                )
             }
         }
-        message.platformType?.let { updateLoadingState(it, LoadingState.Loading) }
+        
+        message.platformType?.let { apiType ->
+            updateLoadingState(apiType, LoadingState.Loading)
+            _uiState.update { state ->
+                state.copy(
+                    activePlatformMessages = state.activePlatformMessages.toMutableMap().apply {
+                        this[apiType] = this[apiType]?.copy(id = message.id, content = "", createdAt = currentTimeStamp)
+                            ?: Message(chatId = chatRoomId, content = "", platformType = apiType)
+                    }
+                )
+            }
+        }
 
         when (message.platformType) {
-            ApiType.OPENAI -> {
-                _openAIMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
-                completeOpenAIChat()
-            }
-
-            ApiType.ANTHROPIC -> {
-                _anthropicMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
-                completeAnthropicChat()
-            }
-
-            ApiType.GOOGLE -> {
-                _googleMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
-                completeGoogleChat()
-            }
-
-            ApiType.GROQ -> {
-                _groqMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
-                completeGroqChat()
-            }
-
-            ApiType.OLLAMA -> {
-                _ollamaMessage.update { it.copy(id = message.id, content = "", createdAt = currentTimeStamp) }
-                completeOllamaChat()
-            }
-
+            ApiType.OPENAI -> completeOpenAIChat()
+            ApiType.ANTHROPIC -> completeAnthropicChat()
+            ApiType.GOOGLE -> completeGoogleChat()
+            ApiType.GROQ -> completeGroqChat()
+            ApiType.OLLAMA -> completeOllamaChat()
             else -> {}
         }
     }
 
     fun updateChatTitle(title: String) {
         // Should be only used for changing chat title after the chatroom is created.
-        if (_chatRoom.value.id > 0) {
-            _chatRoom.update { it.copy(title = title) }
+        if (_uiState.value.chatRoom.id > 0) {
+            _uiState.update { it.copy(chatRoom = it.chatRoom.copy(title = title)) }
             viewModelScope.launch {
-                chatRepository.updateChatTitle(_chatRoom.value, title)
+                chatRepository.updateChatTitle(_uiState.value.chatRoom, title)
             }
         }
     }
@@ -259,17 +267,23 @@ class ChatViewModel @Inject constructor(
         return format.format(currentDate)
     }
 
-    fun updateQuestion(q: String) = _question.update { q }
+    fun updateQuestion(q: String) {
+        _uiState.update { it.copy(currentQuestion = q) }
+    }
 
-    private fun addMessage(message: Message) = _messages.update { it + listOf(message) }
+    private fun addMessage(message: Message) {
+        _uiState.update { it.copy(messages = it.messages + listOf(message)) }
+    }
 
     private fun clearQuestionAndAnswers() {
-        _userMessage.update { it.copy(id = 0, content = "") }
-        _openAIMessage.update { it.copy(id = 0, content = "") }
-        _anthropicMessage.update { it.copy(id = 0, content = "") }
-        _googleMessage.update { it.copy(id = 0, content = "") }
-        _groqMessage.update { it.copy(id = 0, content = "") }
-        _ollamaMessage.update { it.copy(id = 0, content = "") }
+        _uiState.update { state ->
+            state.copy(
+                activeUserMessage = state.activeUserMessage?.copy(id = 0, content = ""),
+                activePlatformMessages = state.activePlatformMessages.mapValues { (_, msg) ->
+                    msg.copy(id = 0, content = "")
+                }
+            )
+        }
     }
 
     private fun completeChat() {
@@ -299,63 +313,78 @@ class ChatViewModel @Inject constructor(
 
     private fun completeAnthropicChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeAnthropicChat(question = _userMessage.value, history = _messages.value)
-            chatFlow.collect { chunk -> anthropicFlow.emit(chunk) }
+            val state = _uiState.value
+            state.activeUserMessage?.let { userMsg ->
+                val chatFlow = chatRepository.completeAnthropicChat(question = userMsg, history = state.messages)
+                chatFlow.collect { chunk -> anthropicFlow.emit(chunk) }
+            }
         }
     }
 
     private fun completeGoogleChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeGoogleChat(question = _userMessage.value, history = _messages.value)
-            chatFlow.collect { chunk -> googleFlow.emit(chunk) }
+            val state = _uiState.value
+            state.activeUserMessage?.let { userMsg ->
+                val chatFlow = chatRepository.completeGoogleChat(question = userMsg, history = state.messages)
+                chatFlow.collect { chunk -> googleFlow.emit(chunk) }
+            }
         }
     }
 
     private fun completeGroqChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeGroqChat(question = _userMessage.value, history = _messages.value)
-            chatFlow.collect { chunk -> groqFlow.emit(chunk) }
+            val state = _uiState.value
+            state.activeUserMessage?.let { userMsg ->
+                val chatFlow = chatRepository.completeGroqChat(question = userMsg, history = state.messages)
+                chatFlow.collect { chunk -> groqFlow.emit(chunk) }
+            }
         }
     }
 
     private fun completeOllamaChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeOllamaChat(question = _userMessage.value, history = _messages.value)
-            chatFlow.collect { chunk -> ollamaFlow.emit(chunk) }
+            val state = _uiState.value
+            state.activeUserMessage?.let { userMsg ->
+                val chatFlow = chatRepository.completeOllamaChat(question = userMsg, history = state.messages)
+                chatFlow.collect { chunk -> ollamaFlow.emit(chunk) }
+            }
         }
     }
 
     private fun completeOpenAIChat() {
         viewModelScope.launch {
-            val chatFlow = chatRepository.completeOpenAIChat(question = _userMessage.value, history = _messages.value)
-            chatFlow.collect { chunk -> openAIFlow.emit(chunk) }
+            val state = _uiState.value
+            state.activeUserMessage?.let { userMsg ->
+                val chatFlow = chatRepository.completeOpenAIChat(question = userMsg, history = state.messages)
+                chatFlow.collect { chunk -> openAIFlow.emit(chunk) }
+            }
         }
     }
 
     private suspend fun fetchMessages() {
         // If the room isn't new
         if (chatRoomId != 0) {
-            _messages.update { chatRepository.fetchMessages(chatRoomId) }
-            _isLoaded.update { true } // Finish fetching
+            val messages = chatRepository.fetchMessages(chatRoomId)
+            _uiState.update { it.copy(messages = messages, isLoaded = true) }
             return
         }
 
         // When message id should sync after saving chats
-        if (_chatRoom.value.id != 0) {
-            _messages.update { chatRepository.fetchMessages(_chatRoom.value.id) }
+        if (_uiState.value.chatRoom.id != 0) {
+            val messages = chatRepository.fetchMessages(_uiState.value.chatRoom.id)
+            _uiState.update { it.copy(messages = messages) }
             return
         }
     }
 
     private fun fetchChatRoom() {
         viewModelScope.launch {
-            _chatRoom.update {
-                if (chatRoomId == 0) {
-                    ChatRoom(id = 0, title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
-                } else {
-                    chatRepository.fetchChatList().first { it.id == chatRoomId }
-                }
+            val chatRoom = if (chatRoomId == 0) {
+                ChatRoom(id = 0, title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
+            } else {
+                chatRepository.fetchChatList().first { it.id == chatRoomId }
             }
+            _uiState.update { it.copy(chatRoom = chatRoom) }
             Log.d("ViewModel", "chatroom: $chatRoom")
         }
     }
@@ -363,61 +392,96 @@ class ChatViewModel @Inject constructor(
     private fun fetchEnabledPlatformsInApp() {
         viewModelScope.launch {
             val enabled = settingRepository.fetchPlatforms().filter { it.enabled }.map { it.name }
-            _enabledPlatformsInApp.update { enabled }
+            _uiState.update { it.copy(enabledPlatformsInApp = enabled) }
         }
     }
 
     private fun observeFlow() {
+        // Create message flow wrappers that update state
+        val messageFlowWrappers = mapOf(
+            ApiType.OPENAI to MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OPENAI)),
+            ApiType.ANTHROPIC to MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.ANTHROPIC)),
+            ApiType.GOOGLE to MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GOOGLE)),
+            ApiType.GROQ to MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.GROQ)),
+            ApiType.OLLAMA to MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = ApiType.OLLAMA))
+        )
+
         viewModelScope.launch {
             openAIFlow.handleStates(
-                messageFlow = _openAIMessage,
+                messageFlow = messageFlowWrappers[ApiType.OPENAI]!!,
                 onLoadingComplete = { updateLoadingState(ApiType.OPENAI, LoadingState.Idle) }
             )
         }
 
         viewModelScope.launch {
             anthropicFlow.handleStates(
-                messageFlow = _anthropicMessage,
+                messageFlow = messageFlowWrappers[ApiType.ANTHROPIC]!!,
                 onLoadingComplete = { updateLoadingState(ApiType.ANTHROPIC, LoadingState.Idle) }
             )
         }
 
         viewModelScope.launch {
             googleFlow.handleStates(
-                messageFlow = _googleMessage,
+                messageFlow = messageFlowWrappers[ApiType.GOOGLE]!!,
                 onLoadingComplete = { updateLoadingState(ApiType.GOOGLE, LoadingState.Idle) }
             )
         }
 
         viewModelScope.launch {
             groqFlow.handleStates(
-                messageFlow = _groqMessage,
+                messageFlow = messageFlowWrappers[ApiType.GROQ]!!,
                 onLoadingComplete = { updateLoadingState(ApiType.GROQ, LoadingState.Idle) }
             )
         }
 
         viewModelScope.launch {
             ollamaFlow.handleStates(
-                messageFlow = _ollamaMessage,
+                messageFlow = messageFlowWrappers[ApiType.OLLAMA]!!,
                 onLoadingComplete = { updateLoadingState(ApiType.OLLAMA, LoadingState.Idle) }
             )
         }
 
+        // Update state from message flow wrappers
+        messageFlowWrappers.forEach { (apiType, flow) ->
+            viewModelScope.launch {
+                flow.collect { message ->
+                    _uiState.update { state ->
+                        state.copy(
+                            activePlatformMessages = state.activePlatformMessages.toMutableMap().apply {
+                                this[apiType] = message
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        val geminiNanoMessageFlow = MutableStateFlow(Message(chatId = chatRoomId, content = "", platformType = null))
         viewModelScope.launch {
             geminiNanoFlow.handleStates(
-                messageFlow = _geminiNanoMessage,
-                onLoadingComplete = { _geminiNanoLoadingState.update { LoadingState.Idle } }
+                messageFlow = geminiNanoMessageFlow,
+                onLoadingComplete = { 
+                    _uiState.update { it.copy(geminiNanoLoadingState = LoadingState.Idle) }
+                }
             )
         }
 
         viewModelScope.launch {
-            _isIdle.collect { status ->
+            geminiNanoMessageFlow.collect { message ->
+                _uiState.update { it.copy(geminiNanoMessage = message) }
+            }
+        }
+
+        viewModelScope.launch {
+            _uiState.map { it.isIdle }.collect { status ->
                 if (status) {
-                    Log.d("status", "val: ${_userMessage.value}")
-                    if (_chatRoom.value.id != -1 && _userMessage.value.content.isNotBlank()) {
+                    val state = _uiState.value
+                    Log.d("status", "val: ${state.activeUserMessage}")
+                    if (state.chatRoom.id != -1 && state.activeUserMessage?.content?.isNotBlank() == true) {
                         syncQuestionAndAnswers()
-                        Log.d("message", "${_messages.value}")
-                        _chatRoom.update { chatRepository.saveChat(_chatRoom.value, _messages.value) }
+                        Log.d("message", "${state.messages}")
+                        val updatedRoom = chatRepository.saveChat(state.chatRoom, state.messages)
+                        _uiState.update { it.copy(chatRoom = updatedRoom) }
                         fetchMessages() // For syncing message ids
                     }
                     clearQuestionAndAnswers()
@@ -426,75 +490,33 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private fun restoreMessageState(apiType: ApiType, previousAnswers: List<Message>) {
-        val message = previousAnswers.firstOrNull { it.platformType == apiType }
-        val retryingState = when (apiType) {
-            ApiType.OPENAI -> _openaiLoadingState
-            ApiType.ANTHROPIC -> _anthropicLoadingState
-            ApiType.GOOGLE -> _googleLoadingState
-            ApiType.GROQ -> _groqLoadingState
-            ApiType.OLLAMA -> _ollamaLoadingState
-        }
-
-        if (retryingState == LoadingState.Loading) return
-        if (message == null) return
-
-        when (apiType) {
-            ApiType.OPENAI -> _openAIMessage.update { message }
-            ApiType.ANTHROPIC -> _anthropicMessage.update { message }
-            ApiType.GOOGLE -> _googleMessage.update { message }
-            ApiType.GROQ -> _groqMessage.update { message }
-            ApiType.OLLAMA -> _ollamaMessage.update { message }
-        }
-    }
-
     private fun syncQuestionAndAnswers() {
-        addMessage(_userMessage.value)
+        val state = _uiState.value
+        state.activeUserMessage?.let { addMessage(it) }
+        
         val enabledPlatforms = enabledPlatformsInChat.toSet()
-
-        if (ApiType.OPENAI in enabledPlatforms) {
-            addMessage(_openAIMessage.value)
-        }
-
-        if (ApiType.ANTHROPIC in enabledPlatforms) {
-            addMessage(_anthropicMessage.value)
-        }
-
-        if (ApiType.GOOGLE in enabledPlatforms) {
-            addMessage(_googleMessage.value)
-        }
-
-        if (ApiType.GROQ in enabledPlatforms) {
-            addMessage(_groqMessage.value)
-        }
-
-        if (ApiType.OLLAMA in enabledPlatforms) {
-            addMessage(_ollamaMessage.value)
+        enabledPlatforms.forEach { apiType ->
+            state.activePlatformMessages[apiType]?.let { message ->
+                addMessage(message)
+            }
         }
     }
 
     private fun updateLoadingState(apiType: ApiType, loadingState: LoadingState) {
-        when (apiType) {
-            ApiType.OPENAI -> _openaiLoadingState.update { loadingState }
-            ApiType.ANTHROPIC -> _anthropicLoadingState.update { loadingState }
-            ApiType.GOOGLE -> _googleLoadingState.update { loadingState }
-            ApiType.GROQ -> _groqLoadingState.update { loadingState }
-            ApiType.OLLAMA -> _ollamaLoadingState.update { loadingState }
-        }
-
-        var result = true
-        enabledPlatformsInChat.forEach {
-            val state = when (it) {
-                ApiType.OPENAI -> _openaiLoadingState
-                ApiType.ANTHROPIC -> _anthropicLoadingState
-                ApiType.GOOGLE -> _googleLoadingState
-                ApiType.GROQ -> _groqLoadingState
-                ApiType.OLLAMA -> _ollamaLoadingState
+        _uiState.update { state ->
+            val updatedStates = state.platformLoadingStates.toMutableMap().apply {
+                this[apiType] = loadingState
             }
-
-            result = result && (state.value is LoadingState.Idle)
+            
+            // Calculate isIdle based on all enabled platforms
+            val allIdle = enabledPlatformsInChat.all { 
+                updatedStates[it] is LoadingState.Idle
+            }
+            
+            state.copy(
+                platformLoadingStates = updatedStates,
+                isIdle = allIdle
+            )
         }
-
-        _isIdle.update { result }
     }
 }
