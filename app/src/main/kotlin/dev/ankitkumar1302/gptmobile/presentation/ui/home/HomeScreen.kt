@@ -56,6 +56,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -140,6 +142,12 @@ fun HomeScreen(
             item { ChatsTitle(scrollBehavior) }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
+                val chatAccessibilityLabel = if (chatListState.isSelectionMode) {
+                    "${chatRoom.title}, $usingPlatform, ${if (chatListState.selected[idx]) stringResource(R.string.selected) else stringResource(R.string.not_selected)}"
+                } else {
+                    "${chatRoom.title}, $usingPlatform"
+                }
+
                 ListItem(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -157,7 +165,10 @@ fun HomeScreen(
                             }
                         )
                         .padding(start = 8.dp, end = 8.dp)
-                        .animateItem(),
+                        .animateItem()
+                        .semantics {
+                            contentDescription = chatAccessibilityLabel
+                        },
                     headlineContent = { Text(text = chatRoom.title) },
                     leadingContent = {
                         if (chatListState.isSelectionMode) {
@@ -243,7 +254,6 @@ fun HomeTopAppBar(
         navigationIcon = {
             if (isSelectionMode) {
                 IconButton(
-                    modifier = Modifier.padding(4.dp),
                     onClick = navigationOnClick
                 ) {
                     Icon(
@@ -256,7 +266,6 @@ fun HomeTopAppBar(
         actions = {
             if (isSelectionMode) {
                 IconButton(
-                    modifier = Modifier.padding(4.dp),
                     onClick = actionOnClick
                 ) {
                     Icon(
@@ -266,7 +275,6 @@ fun HomeTopAppBar(
                 }
             } else {
                 IconButton(
-                    modifier = Modifier.padding(4.dp),
                     onClick = actionOnClick
                 ) {
                     Icon(imageVector = Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings))

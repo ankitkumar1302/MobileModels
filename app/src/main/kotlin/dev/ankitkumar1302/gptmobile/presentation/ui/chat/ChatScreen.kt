@@ -68,6 +68,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
@@ -521,11 +523,25 @@ fun ChatInputBox(
                         }
                         innerTextField()
                     }
+                    val sendText = stringResource(R.string.send)
+                    val disabledText = stringResource(R.string.some_platforms_disabled)
+                    val buttonContentDesc = if (chatEnabled && sendButtonEnabled) {
+                        sendText
+                    } else {
+                        "$sendText, $disabledText"
+                    }
+
                     IconButton(
                         enabled = chatEnabled && sendButtonEnabled,
-                        onClick = { onSendButtonClick(value) }
+                        onClick = { onSendButtonClick(value) },
+                        modifier = Modifier.semantics {
+                            contentDescription = buttonContentDesc
+                        }
                     ) {
-                        Icon(imageVector = ImageVector.vectorResource(id = R.drawable.ic_send), contentDescription = stringResource(R.string.send))
+                        Icon(
+                            imageVector = ImageVector.vectorResource(id = R.drawable.ic_send),
+                            contentDescription = null // Icon is decorative when button has semantic contentDescription
+                        )
                     }
                 }
             }
@@ -538,8 +554,14 @@ fun ScrollToBottomButton(onClick: () -> Unit) {
     SmallFloatingActionButton(
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-        contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        modifier = Modifier.semantics {
+            contentDescription = "Scroll to bottom of chat"
+        }
     ) {
-        Icon(Icons.Rounded.KeyboardArrowDown, stringResource(R.string.scroll_to_bottom_icon))
+        Icon(
+            Icons.Rounded.KeyboardArrowDown,
+            contentDescription = null // Icon is decorative when button has semantic contentDescription
+        )
     }
 }

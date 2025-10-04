@@ -16,6 +16,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import dev.ankitkumar1302.gptmobile.R
 import dev.ankitkumar1302.gptmobile.data.dto.Platform
@@ -30,6 +32,27 @@ fun PlatformCheckBoxItem(
     onClickEvent: (Platform) -> Unit
 ) {
     val interactionSource = remember { MutableInteractionSource() }
+    val selectedText = stringResource(R.string.selected)
+    val notSelectedText = stringResource(R.string.not_selected)
+    val disabledText = stringResource(R.string.disabled)
+
+    val contentDesc = if (enabled) {
+        var desc = "$title, ${if (platform.selected) selectedText else notSelectedText}"
+        if (description != null) {
+            desc = "$desc, $description"
+        }
+        if (!enabled) {
+            desc = "$desc, $disabledText"
+        }
+        desc
+    } else {
+        var desc = "$title, $notSelectedText, $disabledText"
+        if (description != null) {
+            desc = "$desc, $description"
+        }
+        desc
+    }
+
     val rowModifier = if (enabled) {
         modifier
             .fillMaxWidth()
@@ -38,10 +61,16 @@ fun PlatformCheckBoxItem(
                 indication = LocalIndication.current
             ) { onClickEvent.invoke(platform) }
             .padding(top = 12.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
+            .semantics {
+                contentDescription = contentDesc
+            }
     } else {
         modifier
             .fillMaxWidth()
             .padding(top = 12.dp, bottom = 12.dp, start = 16.dp, end = 16.dp)
+            .semantics {
+                contentDescription = contentDesc
+            }
     }
     val textModifier = Modifier.alpha(if (enabled) 1.0f else 0.38f)
 
