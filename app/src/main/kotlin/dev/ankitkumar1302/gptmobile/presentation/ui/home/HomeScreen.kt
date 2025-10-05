@@ -142,8 +142,9 @@ fun HomeScreen(
             item { ChatsTitle(scrollBehavior) }
             itemsIndexed(chatListState.chats, key = { _, it -> it.id }) { idx, chatRoom ->
                 val usingPlatform = chatRoom.enabledPlatform.joinToString(", ") { platformTitles[it] ?: "" }
+                val isSelected = idx < chatListState.selected.size && chatListState.selected[idx]
                 val chatAccessibilityLabel = if (chatListState.isSelectionMode) {
-                    "${chatRoom.title}, $usingPlatform, ${if (chatListState.selected[idx]) stringResource(R.string.selected) else stringResource(R.string.not_selected)}"
+                    "${chatRoom.title}, $usingPlatform, ${if (isSelected) stringResource(R.string.selected) else stringResource(R.string.not_selected)}"
                 } else {
                     "${chatRoom.title}, $usingPlatform"
                 }
@@ -173,7 +174,7 @@ fun HomeScreen(
                     leadingContent = {
                         if (chatListState.isSelectionMode) {
                             Checkbox(
-                                checked = chatListState.selected[idx],
+                                checked = isSelected,
                                 onCheckedChange = { homeViewModel.selectChat(idx) }
                             )
                         } else {
