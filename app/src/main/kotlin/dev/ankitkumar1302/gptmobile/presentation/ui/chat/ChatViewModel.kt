@@ -51,9 +51,22 @@ class ChatViewModel @Inject constructor(
         val geminiNanoLoadingState: LoadingState = LoadingState.Idle
     )
 
-    private val chatRoomId: Int = checkNotNull(savedStateHandle["chatRoomId"])
-    private val enabledPlatformString: String = checkNotNull(savedStateHandle["enabledPlatforms"])
-    val enabledPlatformsInChat = enabledPlatformString.split(',').map { s -> ApiType.valueOf(s) }
+    private val chatRoomId: Int = savedStateHandle.get<Int>("chatRoomId") ?: 0
+    private val enabledPlatformString: String = savedStateHandle.get<String>("enabledPlatforms") ?: ""
+    val enabledPlatformsInChat: List<ApiType> = if (enabledPlatformString.isNotBlank()) {
+        enabledPlatformString.split(',')
+            .mapNotNull { s ->
+                try {
+                    ApiType.valueOf(s.trim())
+                } catch (e: IllegalArgumentException) {
+                    // Log error and skip invalid enum values
+                    android.util.Log.w("ChatViewModel", "Invalid ApiType value: $s", e)
+                    null
+                }
+            }
+    } else {
+        emptyList()
+    }
     private val currentTimeStamp: Long
         get() = System.currentTimeMillis() / 1000
 
@@ -382,7 +395,8 @@ class ChatViewModel @Inject constructor(
             val chatRoom = if (chatRoomId == 0) {
                 ChatRoom(id = 0, title = "Untitled Chat", enabledPlatform = enabledPlatformsInChat)
             } else {
-                chatRepository.fetchChatList().first { it.id == chatRoomId }
+                chatRepository.fetchChatList().firstOrNull { it.id == chatRoomId }
+                    ?: ChatRoom(id = chatRoomId, title = "Chat Not Found", enabledPlatform = enabledPlatformsInChat)
             }
             _uiState.update { it.copy(chatRoom = chatRoom) }
             Log.d("ViewModel", "chatroom: $chatRoom")

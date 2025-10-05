@@ -34,6 +34,7 @@ import dev.ankitkumar1302.gptmobile.data.network.AnthropicAPI
 import javax.inject.Inject
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
@@ -52,8 +53,11 @@ class ChatRepositoryImpl @Inject constructor(
     private lateinit var groq: OpenAI
 
     override suspend fun completeOpenAIChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI })
-        openAI = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+        val platform = settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OPENAI }
+            ?: return flowOf(ApiState.Error("OpenAI platform settings not found"))
+
+        val token = platform.token ?: return flowOf(ApiState.Error("OpenAI API token not configured"))
+        openAI = OpenAI(token, host = OpenAIHost(baseUrl = platform.apiUrl ?: "https://api.openai.com/v1/"))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OPENAI, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -74,9 +78,11 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun completeAnthropicChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.ANTHROPIC })
-        anthropic.setToken(platform.token)
-        anthropic.setAPIUrl(platform.apiUrl)
+        val platform = settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.ANTHROPIC }
+            ?: return flowOf(ApiState.Error("Anthropic platform settings not found"))
+
+        platform.token?.let { anthropic.setToken(it) } ?: return flowOf(ApiState.Error("Anthropic API token not configured"))
+        platform.apiUrl?.let { anthropic.setAPIUrl(it) }
 
         val generatedMessages = messageToAnthropicMessage(history + listOf(question))
         val messageRequest = MessageRequest(
@@ -103,14 +109,18 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun completeGoogleChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE })
+        val platform = settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GOOGLE }
+            ?: return flowOf(ApiState.Error("Google platform settings not found"))
+
+        val token = platform.token ?: return flowOf(ApiState.Error("Google API token not configured"))
+
         val config = generationConfig {
             temperature = platform.temperature
             topP = platform.topP
         }
         google = GenerativeModel(
             modelName = platform.model ?: "",
-            apiKey = platform.token ?: "",
+            apiKey = token,
             systemInstruction = content { text(platform.systemPrompt ?: ModelConstants.DEFAULT_PROMPT) },
             generationConfig = config,
             safetySettings = listOf(
@@ -130,8 +140,11 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun completeGroqChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ })
-        groq = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = platform.apiUrl))
+        val platform = settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.GROQ }
+            ?: return flowOf(ApiState.Error("Groq platform settings not found"))
+
+        val token = platform.token ?: return flowOf(ApiState.Error("Groq API token not configured"))
+        groq = OpenAI(token, host = OpenAIHost(baseUrl = platform.apiUrl ?: "https://api.groq.com/openai/v1/"))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.GROQ, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -152,8 +165,12 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun completeOllamaChat(question: Message, history: List<Message>): Flow<ApiState> {
-        val platform = checkNotNull(settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA })
-        ollama = OpenAI(platform.token ?: "", host = OpenAIHost(baseUrl = "${platform.apiUrl}v1/"))
+        val platform = settingRepository.fetchPlatforms().firstOrNull { it.name == ApiType.OLLAMA }
+            ?: return flowOf(ApiState.Error("Ollama platform settings not found"))
+
+        val token = platform.token ?: return flowOf(ApiState.Error("Ollama API token not configured"))
+        val apiUrl = platform.apiUrl ?: return flowOf(ApiState.Error("Ollama API URL not configured"))
+        ollama = OpenAI(token, host = OpenAIHost(baseUrl = "${apiUrl}v1/"))
 
         val generatedMessages = messageToOpenAICompatibleMessage(ApiType.OLLAMA, history + listOf(question))
         val generatedMessageWithPrompt = listOf(
@@ -191,9 +208,15 @@ class ChatRepositoryImpl @Inject constructor(
             messageDao.addMessages(*updatedMessages.toTypedArray())
 
             val savedChatRoom = chatRoom.copy(id = chatId.toInt())
-            updateChatTitle(savedChatRoom, updatedMessages[0].content)
 
-            return savedChatRoom.copy(title = updatedMessages[0].content.replace('\n', ' ').take(50))
+            // Generate title from first user message if available
+            val titleContent = updatedMessages.firstOrNull { it.platformType == null }?.content
+                ?: updatedMessages.firstOrNull()?.content
+                ?: "Untitled Chat"
+
+            updateChatTitle(savedChatRoom, titleContent)
+
+            return savedChatRoom.copy(title = titleContent.replace('\n', ' ').take(50))
         }
 
         val savedMessages = fetchMessages(chatRoom.id)

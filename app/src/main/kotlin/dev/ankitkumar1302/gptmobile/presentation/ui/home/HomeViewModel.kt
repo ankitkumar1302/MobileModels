@@ -98,7 +98,9 @@ class HomeViewModel @Inject constructor(
     fun deleteSelectedChats() {
         viewModelScope.launch {
             val state = _uiState.value
-            val selectedChats = state.chats.filterIndexed { index, _ -> state.selected[index] }
+            val selectedChats = state.chats.filterIndexed { index, _ ->
+                index < state.selected.size && state.selected[index]
+            }
 
             chatRepository.deleteChats(selectedChats)
             val chats = chatRepository.fetchChatList()

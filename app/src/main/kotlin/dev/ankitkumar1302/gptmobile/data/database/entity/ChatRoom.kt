@@ -27,12 +27,21 @@ data class ChatRoom(
 
 class APITypeConverter {
     @TypeConverter
-    fun fromString(value: String): List<ApiType> {
-        val splitted = value.split(',')
+    fun fromString(value: String?): List<ApiType> {
+        if (value.isNullOrBlank()) return emptyList()
 
-        return splitted.map { s -> ApiType.valueOf(s) }
+        return value.split(',')
+            .mapNotNull { s ->
+                try {
+                    ApiType.valueOf(s.trim())
+                } catch (e: IllegalArgumentException) {
+                    // Log error and skip invalid enum values
+                    android.util.Log.w("APITypeConverter", "Invalid ApiType value: $s", e)
+                    null
+                }
+            }
     }
 
     @TypeConverter
-    fun fromList(value: List<ApiType>): String = value.joinToString(",") { v -> v.name }
+    fun fromList(value: List<ApiType>?): String = value?.joinToString(",") { v -> v.name } ?: ""
 }
