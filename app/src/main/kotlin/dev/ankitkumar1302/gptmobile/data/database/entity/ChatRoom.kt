@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import dev.ankitkumar1302.gptmobile.data.model.ApiType
 import kotlinx.parcelize.Parcelize
+import timber.log.Timber
 
 @Parcelize
 @Entity(tableName = "chats")
@@ -36,7 +37,7 @@ class APITypeConverter {
                     ApiType.valueOf(s.trim())
                 } catch (e: IllegalArgumentException) {
                     // Log error and skip invalid enum values
-                    android.util.Log.w("APITypeConverter", "Invalid ApiType value: $s", e)
+                    Timber.w(e, "Invalid ApiType value: $s")
                     null
                 }
             }

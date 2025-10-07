@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
-import android.util.Log
+import timber.log.Timber
 import android.widget.Toast
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
@@ -153,7 +153,7 @@ fun ChatScreen(
         listState.animateScrollToItem(groupedMessages.keys.size)
     }
 
-    Log.d("AIPackage", "AICore: ${aiCorePackageInfo?.versionName ?: "Not installed"}, Private Compute Services: ${privateComputePackageInfo?.versionName ?: "Not installed"}")
+    Timber.d("AIPackage: AICore: ${aiCorePackageInfo?.versionName ?: "Not installed"}, Private Compute Services: ${privateComputePackageInfo?.versionName ?: "Not installed"}")
 
     Scaffold(
         modifier = Modifier
@@ -195,7 +195,7 @@ fun ChatScreen(
         },
         floatingActionButtonPosition = FabPosition.Center
     ) { innerPadding ->
-        groupedMessages.forEach { (i, k) -> Log.d("grouped", "idx: $i, data: $k") }
+        groupedMessages.forEach { (i, k) -> Timber.d("grouped: idx: $i, data: $k") }
         LazyColumn(
             modifier = Modifier.padding(innerPadding),
             state = listState
@@ -467,7 +467,7 @@ private fun exportChat(context: Context, chatViewModel: ChatViewModel) {
         }
         context.startActivity(chooser)
     } catch (e: Exception) {
-        Log.e("ChatExport", "Failed to export chat", e)
+        Timber.e(e, "Failed to export chat")
         Toast.makeText(context, "Failed to export chat", Toast.LENGTH_SHORT).show()
     }
 }
