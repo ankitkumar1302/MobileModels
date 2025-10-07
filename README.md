@@ -1,6 +1,6 @@
 <div align="center">
 
-# GPT Mobile
+# Mobile Models
 
 ### Chat Assistant for Android that supports chatting with multiple models at once.
 

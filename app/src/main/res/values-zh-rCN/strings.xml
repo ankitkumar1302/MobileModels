@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">GPTMobile</string>
-    <string name="gpt_mobile_introduction_logo">GPT Mobile的介绍图标</string>
+    <string name="app_name">Mobile Models</string>
+    <string name="gpt_mobile_introduction_logo">Mobile Models的介绍图标</string>
     <string name="welcome_title">最好的AI助理，\n你可以在你的手机上用它。</string>
     <string name="welcome_description">选择一个最适合你的模型，问一切你想问的!</string>
     <string name="get_started">开始使用</string>
@@ -37,7 +37,7 @@
     <string name="gemini_1_5_flash_description">胜任不同场景的高性能模型</string>
     <string name="gemini_1_0_pro_description">自然语言，上下文对话和代码生成与修正</string>
     <string name="setup_complete">已经配置完毕!</string>
-    <string name="setup_complete_description">开始使用GPT Mobile吧!</string>
+    <string name="setup_complete_description">开始使用Mobile Models吧!</string>
     <string name="done">完成</string>
     <string name="setup_complete_logo">设置完整的图标</string>
     <string name="chats">会话</string>

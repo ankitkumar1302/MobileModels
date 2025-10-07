@@ -2,7 +2,7 @@
 <resources>
     <string name="clear_token">נקה אסימון</string>
     <string name="welcome_description">השתמש במודל שהכי מתאים לך.\nתשאל כל מה שאתה רוצה!</string>
-    <string name="app_name">GPTMobile</string>
+    <string name="app_name">Mobile Models</string>
     <string name="welcome_title">עוזר הבינה המלאכותית הטוב ביותר\nשאתה יכול לקבל\nבסמארטפון שלך.</string>
     <string name="get_started">התחל</string>
     <string name="sample_item_title">פריט 1</string>
@@ -22,7 +22,7 @@
     <string name="gemini_1_5_pro_description">מותאם למשימות חשיבה כולל קוד ויצירת טקסט.</string>
     <string name="gemini_1_5_flash_description">ביצועים מהירים ורב-תכליתיים במגוון רחב של משימות.</string>
     <string name="setup_complete">אתה מוכן!</string>
-    <string name="setup_complete_description">בואו נתחיל להשתמש ב-GPT Mobile!</string>
+    <string name="setup_complete_description">בואו נתחיל להשתמש ב-Mobile Models!</string>
     <string name="setup_complete_logo">הגדרת לוגו מלא</string>
     <string name="chats">שיחות</string>
     <string name="settings">הגדרות</string>
@@ -112,7 +112,7 @@
     <string name="edit_question">ערוך הודעת משתמש</string>
     <string name="user_message">הודעת משתמש</string>
     <string name="export_chat">ייצוא שיחה</string>
-    <string name="gpt_mobile_introduction_logo">לוגו מבוא של GPT Mobile</string>
+    <string name="gpt_mobile_introduction_logo">לוגו מבוא של Mobile Models</string>
     <string name="platform_select_description">בחר את הפלטפורמה שבה אתה רוצה להשתמש. תוכל לשנות זאת מאוחר יותר בהגדרות. יש תמיכה בפלטפורמות נוספות.</string>
     <string name="openai_description">יוצר ChatGPT.</string>
     <string name="token_input_description">הזן את מפתח ה-API של הפלטפורמה שבחרת. האפליקציה הזו לעולם לא אוספת את הנתונים האלה. מפתחות ונתוני צ\'אט אלה יאוחסנו רק במכשיר שלך, ולא יישלחו לשרתים אחרים מלבד נקודות קצה API.</string>

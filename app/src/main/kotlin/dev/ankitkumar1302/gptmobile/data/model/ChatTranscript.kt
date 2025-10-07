@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ChatTranscript(
     val version: String = "1.0",
-    val appName: String = "GPT Mobile",
+    val appName: String = "Mobile Models",
     val exportTimestamp: Long = System.currentTimeMillis(),
     val chatRoom: ChatRoomTranscript,
     val messages: List<MessageTranscript>
