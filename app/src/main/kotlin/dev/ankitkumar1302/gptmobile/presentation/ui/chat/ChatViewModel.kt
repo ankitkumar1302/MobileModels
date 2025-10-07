@@ -274,10 +274,21 @@ class ChatViewModel @Inject constructor(
         return Pair(fileName, chatHistoryMarkdown)
     }
 
-    private fun formatCurrentDateTime(): String {
+    private     fun formatCurrentDateTime(): String {
         val currentDate = java.util.Date()
         val format = java.text.SimpleDateFormat("yyyy-MM-dd hh:mm a", java.util.Locale.getDefault())
         return format.format(currentDate)
+    }
+
+    suspend fun importChat(transcript: dev.ankitkumar1302.gptmobile.data.model.ChatTranscript): ChatRoom {
+        // Convert transcript back to ChatRoom and Messages
+        val (chatRoom, messages) = dev.ankitkumar1302.gptmobile.util.ChatExportImportUtils.parseChatTranscript(transcript)
+
+        // Save the imported chat
+        val savedChatRoom = chatRepository.saveChat(chatRoom, messages)
+
+        Timber.d("Chat imported successfully: ${savedChatRoom.title} with ${messages.size} messages")
+        return savedChatRoom
     }
 
     fun updateQuestion(q: String) {
