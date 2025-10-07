@@ -75,12 +75,15 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.FileProvider.getUriForFile
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.ankitkumar1302.gptmobile.R
 import dev.ankitkumar1302.gptmobile.data.database.entity.Message
 import dev.ankitkumar1302.gptmobile.data.model.ApiType
+import dev.ankitkumar1302.gptmobile.util.ChatExportImportUtils
 import dev.ankitkumar1302.gptmobile.util.DefaultHashMap
 import dev.ankitkumar1302.gptmobile.util.multiScrollStateSaver
 import java.io.File
@@ -91,7 +94,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatScreen(
     chatViewModel: ChatViewModel = hiltViewModel(),
-    onBackAction: () -> Unit
+    onBackAction: () -> Unit,
+    onNavigateToImportedChat: (Int) -> Unit = {}
 ) {
     val screenWidth = LocalConfiguration.current.screenWidthDp.dp
     val focusManager = LocalFocusManager.current
@@ -139,10 +143,45 @@ fun ChatScreen(
     val groupedMessages = remember(messages) { groupMessages(messages) }
     val latestMessageIndex = groupedMessages.keys.maxOrNull() ?: 0
     val chatBubbleScrollStates = rememberSaveable(saver = multiScrollStateSaver) { DefaultHashMap<Int, ScrollState> { ScrollState(0) } }
-    val canEnableAICoreMode = rememberSaveable { checkAICoreAvailability(aiCorePackageInfo, privateComputePackageInfo) }
-    val context = LocalContext.current
 
+    // Activity result launchers for export/import functionality
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        scope.launch {
+            try {
+                val transcript = ChatExportImportUtils.createChatTranscript(chatRoom, messages)
+                ChatExportImportUtils.handleExportResult(context, transcript, uri)
+                android.widget.Toast.makeText(context, "Chat exported successfully", android.widget.Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Timber.e(e, "Failed to export chat")
+                android.widget.Toast.makeText(context, "Failed to export chat", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val transcript = ChatExportImportUtils.importChatFromJson(context, uri)
+                    val importedChatRoom = chatViewModel.importChat(transcript)
+                    android.widget.Toast.makeText(context, "Chat imported successfully", android.widget.Toast.LENGTH_SHORT).show()
+                    // Navigate to the imported chat
+                    onNavigateToImportedChat(importedChatRoom.id)
+                } catch (e: Exception) {
+                    Timber.e(e, "Failed to import chat")
+                    android.widget.Toast.makeText(context, "Failed to import chat", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+    val canEnableAICoreMode = rememberSaveable { checkAICoreAvailability(aiCorePackageInfo, privateComputePackageInfo) }
 
     LaunchedEffect(isIdle) {
         listState.animateScrollToItem(groupedMessages.keys.size)
@@ -170,7 +209,25 @@ fun ChatScreen(
                 onBackAction,
                 scrollBehavior,
                 chatViewModel::openChatTitleDialog,
-                onExportChatItemClick = { exportChat(context, chatViewModel) }
+                onExportChatJsonItemClick = {
+                    val transcript = ChatExportImportUtils.createChatTranscript(chatRoom, messages)
+                    val fileName = "chat_export_${chatRoom.title}_${System.currentTimeMillis()}.json"
+                    exportLauncher.launch(fileName)
+                },
+                onImportChatItemClick = {
+                    importLauncher.launch(arrayOf("application/json"))
+                },
+                onShareChatItemClick = {
+                    scope.launch {
+                        try {
+                            val transcript = ChatExportImportUtils.createChatTranscript(chatRoom, messages)
+                            ChatExportImportUtils.shareChatTranscript(context, transcript)
+                        } catch (e: Exception) {
+                            Timber.e(e, "Failed to share chat")
+                            android.widget.Toast.makeText(context, "Failed to share chat", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
             )
         },
         bottomBar = {
@@ -382,7 +439,9 @@ private fun ChatTopBar(
     onBackAction: () -> Unit,
     scrollBehavior: TopAppBarScrollBehavior,
     onChatTitleItemClick: () -> Unit,
-    onExportChatItemClick: () -> Unit
+    onExportChatJsonItemClick: () -> Unit,
+    onImportChatItemClick: () -> Unit,
+    onShareChatItemClick: () -> Unit
 ) {
     var isDropDownMenuExpanded by remember { mutableStateOf(false) }
 
@@ -410,7 +469,9 @@ private fun ChatTopBar(
                     onChatTitleItemClick.invoke()
                     isDropDownMenuExpanded = false
                 },
-                onExportChatItemClick = onExportChatItemClick
+                onExportChatJsonItemClick = onExportChatJsonItemClick,
+                onImportChatItemClick = onImportChatItemClick,
+                onShareChatItemClick = onShareChatItemClick
             )
         },
         scrollBehavior = scrollBehavior
@@ -423,7 +484,9 @@ fun ChatDropdownMenu(
     isMenuItemEnabled: Boolean,
     onDismissRequest: () -> Unit,
     onChatTitleItemClick: () -> Unit,
-    onExportChatItemClick: () -> Unit
+    onExportChatJsonItemClick: () -> Unit,
+    onImportChatItemClick: () -> Unit,
+    onShareChatItemClick: () -> Unit
 ) {
     DropdownMenu(
         modifier = Modifier.wrapContentSize(),
@@ -435,12 +498,30 @@ fun ChatDropdownMenu(
             text = { Text(text = stringResource(R.string.update_chat_title)) },
             onClick = onChatTitleItemClick
         )
-        /* Export Chat */
+        /* Export Chat (.json) */
         DropdownMenuItem(
             enabled = isMenuItemEnabled,
-            text = { Text(text = stringResource(R.string.export_chat)) },
+            text = { Text(text = "Export Chat (.json)") },
             onClick = {
-                onExportChatItemClick()
+                onExportChatJsonItemClick()
+                onDismissRequest()
+            }
+        )
+        /* Import from file */
+        DropdownMenuItem(
+            enabled = isMenuItemEnabled,
+            text = { Text(text = "Import from file") },
+            onClick = {
+                onImportChatItemClick()
+                onDismissRequest()
+            }
+        )
+        /* Share chat */
+        DropdownMenuItem(
+            enabled = isMenuItemEnabled,
+            text = { Text(text = "Share chat") },
+            onClick = {
+                onShareChatItemClick()
                 onDismissRequest()
             }
         )

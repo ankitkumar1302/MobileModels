@@ -207,7 +207,19 @@ fun NavGraphBuilder.chatScreenNavigation(navController: NavHostController) {
         )
     ) {
         ChatScreen(
-            onBackAction = { navController.navigateUp() }
+            onBackAction = { navController.navigateUp() },
+            onNavigateToImportedChat = { chatId ->
+                val currentEnabledPlatforms = it.arguments?.getString("enabledPlatforms") ?: ""
+                navController.navigate(
+                    Route.CHAT_ROOM
+                        .replace(oldValue = "{chatRoomId}", newValue = "$chatId")
+                        .replace(oldValue = "{enabledPlatforms}", newValue = currentEnabledPlatforms)
+                ) {
+                    // Pop the current chat and replace with the imported one
+                    popUpTo(Route.CHAT_ROOM) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
         )
     }
 }
