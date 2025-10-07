@@ -1,7 +1,5 @@
 <div align="center">
 
-<img width="200" height="200" style="display: block;" src="./images/logo.png">
-
 # GPT Mobile
 
 ### Chat Assistant for Android that supports chatting with multiple models at once.
@@ -19,7 +17,7 @@
 
 <div align="center">
 
-<img style="display: block;" src="./images/screenshots.webp">
+<!-- Screenshots removed -->
 
 </div>
 
