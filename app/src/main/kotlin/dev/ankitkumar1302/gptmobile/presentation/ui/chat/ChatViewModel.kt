@@ -1,6 +1,6 @@
 package dev.ankitkumar1302.gptmobile.presentation.ui.chat
 
-import android.util.Log
+import timber.log.Timber
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -60,7 +60,7 @@ class ChatViewModel @Inject constructor(
                     ApiType.valueOf(s.trim())
                 } catch (e: IllegalArgumentException) {
                     // Log error and skip invalid enum values
-                    android.util.Log.w("ChatViewModel", "Invalid ApiType value: $s", e)
+                    Timber.w(e, "Invalid ApiType value: $s")
                     null
                 }
             }
@@ -117,8 +117,8 @@ class ChatViewModel @Inject constructor(
     private val geminiNanoFlow = MutableSharedFlow<ApiState>()
 
     init {
-        Log.d("ViewModel", "$chatRoomId")
-        Log.d("ViewModel", "$enabledPlatformsInChat")
+        Timber.d("ViewModel: $chatRoomId")
+        Timber.d("ViewModel: $enabledPlatformsInChat")
         fetchChatRoom()
         viewModelScope.launch { fetchMessages() }
         fetchEnabledPlatformsInApp()
@@ -126,7 +126,7 @@ class ChatViewModel @Inject constructor(
     }
 
     fun askQuestion() {
-        Log.d("Question: ", _uiState.value.currentQuestion)
+        Timber.d("Question: ${_uiState.value.currentQuestion}")
         _uiState.update { 
             it.copy(
                 activeUserMessage = it.activeUserMessage?.copy(
@@ -399,7 +399,7 @@ class ChatViewModel @Inject constructor(
                     ?: ChatRoom(id = chatRoomId, title = "Chat Not Found", enabledPlatform = enabledPlatformsInChat)
             }
             _uiState.update { it.copy(chatRoom = chatRoom) }
-            Log.d("ViewModel", "chatroom: $chatRoom")
+            Timber.d("ViewModel: chatroom: $chatRoom")
         }
     }
 
@@ -490,10 +490,10 @@ class ChatViewModel @Inject constructor(
             _uiState.map { it.isIdle }.collect { status ->
                 if (status) {
                     val state = _uiState.value
-                    Log.d("status", "val: ${state.activeUserMessage}")
+                    Timber.d("status: val: ${state.activeUserMessage}")
                     if (state.chatRoom.id != -1 && state.activeUserMessage?.content?.isNotBlank() == true) {
                         syncQuestionAndAnswers()
-                        Log.d("message", "${state.messages}")
+                        Timber.d("message: ${state.messages}")
                         val updatedRoom = chatRepository.saveChat(state.chatRoom, state.messages)
                         _uiState.update { it.copy(chatRoom = updatedRoom) }
                         fetchMessages() // For syncing message ids

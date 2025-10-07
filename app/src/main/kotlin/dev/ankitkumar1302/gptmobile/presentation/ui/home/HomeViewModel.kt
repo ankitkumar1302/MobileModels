@@ -1,6 +1,6 @@
 package dev.ankitkumar1302.gptmobile.presentation.ui.home
 
-import android.util.Log
+import timber.log.Timber
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -137,7 +137,7 @@ class HomeViewModel @Inject constructor(
                     isSelectionMode = false
                 )
             }
-            Log.d("chats", "${_uiState.value.chats}")
+            Timber.d("chats: ${_uiState.value.chats}")
         }
     }
 

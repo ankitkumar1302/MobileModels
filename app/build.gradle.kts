@@ -51,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -113,6 +114,9 @@ dependencies {
 
     // Serialization
     implementation(libs.kotlin.serialization)
+
+    // Logging
+    implementation(libs.timber)
 
     // Test
     testImplementation(libs.junit)
